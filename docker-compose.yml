@@ -5,10 +5,9 @@ services:
     build: .
     volumes:
       - .:/app
-    command: >
-      python main.py 
-      --input /app/2026.08.10.txt 
-      --output /app/result_plot.png 
-      --time_step 60 
-      --price_step 1.0 
-      --percentile_grid 10
+    environment:
+      - INPUT_FILE=/app/2026.08.10.txt
+      - OUTPUT_FILE=/app/result_plot.png
+      - TIME_STEP_SEC=60
+      - PRICE_STEP=1.0
+      - PERCENTILE_GRID_SIZE=10
