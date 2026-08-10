@@ -66,7 +66,8 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
         vals = np.array(values)
 
         # 5. Quantiles
-        quantiles = np.linspace(0, 100, percentile_grid_size + 1)
+        num_fragments = 100 // percentile_grid_size
+        quantiles = np.linspace(0, 100, num_fragments + 1)
         bins = np.percentile(vals, quantiles)
         bins = np.unique(bins)
         
