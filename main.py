@@ -102,8 +102,7 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
                 pd.Timedelta(seconds=time_step_sec), 
                 price_step,
                 facecolor=row['color'],
-                edgecolor='black',
-                linewidth=0.5,
+                edgecolor='none',
                 alpha=0.8
             )
             ax.add_patch(rect)
@@ -111,7 +110,7 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
         ax.set_xlim(cells['grid_t'].min() - pd.Timedelta(seconds=time_step_sec), cells['grid_t'].max() + pd.Timedelta(seconds=time_step_sec))
         ax.set_ylim(cells['grid_p'].min() - price_step, cells['grid_p'].max() + price_step)
         ax.set_title(title)
-        ax.grid(True, which='both', linestyle='--', alpha=0.5)
+        ax.grid(True, which='both', linestyle='-', alpha=0.7)
 
     if buy_cells is not None:
         plot_cells(ax1, buy_cells, "BUY Trades Impact")
@@ -125,17 +124,37 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
     if all_times:
         start_time = min(all_times)
         end_time = max(all_times)
-        first_hour = start_time.replace(minute=0, second=0, microsecond=0)
-        if first_hour < start_time:
-            first_hour += timedelta(hours=1)
         
-        current = first_hour
+        # Logic for x-axis ticks based on time_step_sec
         hour_ticks = []
+        current = start_time.replace(minute=0, second=0, microsecond=0)
+        if current < start_time:
+            current += timedelta(hours=1)
+            
         while current <= end_time:
             hour_ticks.append(current)
             current += timedelta(hours=1)
-        
-        plt.xticks(hour_ticks, [h.strftime('%H:%M') for h in hour_ticks], rotation=45)
+
+        # Add finer ticks if time_step_sec < 3600 (e.g., every 10 mins)
+        if time_step_sec < 3600:
+            fine_ticks = []
+            # Start from the first full 10-min interval after or at start_time
+            start_minute = (start_time.minute // 10) * 10
+            current_fine = start_time.replace(minute=start_minute, second=0, microsecond=0)
+            if current_fine < start_time:
+                current_fine += timedelta(minutes=10)
+            
+            while current_fine <= end_time:
+                fine_ticks.append(current_fine)
+                current_fine += timedelta(minutes=10)
+            
+            # Combine and sort unique ticks
+            all_ticks = sorted(list(set(hour_ticks + fine_ticks)))
+        else:
+            all_ticks = hour_ticks
+
+        if all_ticks:
+            plt.xticks(all_ticks, [t.strftime('%H:%M') for t in all_ticks], rotation=45)
 
     plt.tight_layout()
     plt.savefig(output_file)
