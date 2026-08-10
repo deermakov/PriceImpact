@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  price-impact-analyzer:
+    build: .
+    volumes:
+      - .:/app
+    command: >
+      python main.py 
+      --input /app/2026.08.10.txt 
+      --output /app/result_plot.png 
+      --time_step 60 
+      --price_step 1.0 
+      --percentile_grid 10
