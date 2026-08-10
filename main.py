@@ -92,7 +92,23 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
             ax.text(0.5, 0.5, f"No {title} data", transform=ax.transAxes, ha='center')
             return
         
-        sc = ax.scatter(cells['grid_t'], cells['grid_p'], c=cells['color'].apply(lambda x: x[:3]), s=100)
+        for _, row in cells.iterrows():
+            # Matplotlib Rectangle expects numerical values for width/height when working with datetime axes
+            # We convert the time offset to a Timedelta and use it directly, 
+            # but ensure the width is passed as a Timedelta object so matplotlib can handle it.
+            rect = plt.Rectangle(
+                (row['grid_t'] - pd.Timedelta(seconds=time_step_sec/2), row['grid_p'] - price_step/2),
+                pd.Timedelta(seconds=time_step_sec), 
+                price_step,
+                facecolor=row['color'],
+                edgecolor='black',
+                linewidth=0.5,
+                alpha=0.8
+            )
+            ax.add_patch(rect)
+
+        ax.set_xlim(cells['grid_t'].min() - pd.Timedelta(seconds=time_step_sec), cells['grid_t'].max() + pd.Timedelta(seconds=time_step_sec))
+        ax.set_ylim(cells['grid_p'].min() - price_step, cells['grid_p'].max() + price_step)
         ax.set_title(title)
         ax.grid(True, which='both', linestyle='--', alpha=0.5)
 

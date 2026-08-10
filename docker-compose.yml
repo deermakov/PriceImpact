@@ -9,5 +9,5 @@ services:
       - INPUT_FILE=/app/2026.08.10.txt
       - OUTPUT_FILE=/app/result_plot.png
       - TIME_STEP_SEC=60
-      - PRICE_STEP=1.0
-      - PERCENTILE_GRID_SIZE=10
+      - PRICE_STEP=10
+      - PERCENTILE_GRID_SIZE=1
