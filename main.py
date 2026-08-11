@@ -86,7 +86,44 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
 
     # Plotting
     print("Plotting...")
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
+    
+    # Parameters for cell size in inches to keep them visually consistent
+    CELL_WIDTH_INCHES = 0.05
+    CELL_HEIGHT_INCHES = 0.05
+
+    all_times = []
+    if buy_cells is not None: all_times.extend(buy_cells['grid_t'].tolist())
+    if sell_cells is not None: all_times.extend(sell_cells['grid_t'].tolist())
+
+    if not all_times:
+        print("No data to plot.")
+        return
+
+    start_time = min(all_times)
+    end_time = max(all_times)
+
+    # Calculate dynamic figsize
+    duration_seconds = (end_time - start_time).total_seconds()
+    num_cells_x = max(1, int(np.ceil(duration_seconds / time_step_sec)))
+    total_width = num_cells_x * CELL_WIDTH_INCHES
+
+    all_prices = []
+    if buy_cells is not None: all_prices.extend(buy_cells['grid_p'].tolist())
+    if sell_cells is not None: all_prices.extend(sell_cells['grid_p'].tolist())
+    
+    price_min = min(all_prices) if all_prices else 0
+    price_max = max(all_prices) if all_prices else price_step
+    price_range = max(price_step, price_max - price_min)
+    
+    num_cells_y = max(1, int(np.ceil(price_range / price_step)))
+    # Height accounts for 2 plots + margins/labels
+    total_height = (num_cells_y * CELL_HEIGHT_INCHES) * 2 + 3
+
+    # Safety bounds to prevent extreme figsize
+    total_width = max(10, min(total_width, 500))
+    total_height = max(6, min(total_height, 500))
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(total_width, total_height), sharex=True)
 
     def plot_cells(ax, cells, title):
         if cells is None or cells.empty:
@@ -94,9 +131,6 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
             return
         
         for _, row in cells.iterrows():
-            # Matplotlib Rectangle expects numerical values for width/height when working with datetime axes
-            # We convert the time offset to a Timedelta and use it directly, 
-            # but ensure the width is passed as a Timedelta object so matplotlib can handle it.
             rect = plt.Rectangle(
                 (row['grid_t'] - pd.Timedelta(seconds=time_step_sec/2), row['grid_p'] - price_step/2),
                 pd.Timedelta(seconds=time_step_sec), 
@@ -107,24 +141,25 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
             )
             ax.add_patch(rect)
 
-        ax.set_xlim(cells['grid_t'].min() - pd.Timedelta(seconds=time_step_sec), cells['grid_t'].max() + pd.Timedelta(seconds=time_step_sec))
-        ax.set_ylim(cells['grid_p'].min() - price_step, cells['grid_p'].max() + price_step)
-        ax.set_title(title)
+        ax.set_xlim(start_time - pd.Timedelta(seconds=time_step_sec), end_time + pd.Timedelta(seconds=time_step_sec))
+        ax.set_ylim(price_min - price_step, price_max + price_step)
+        ax.set_title(title, fontsize=16)
+        ax.tick_params(axis='both', which='major', labelsize=14)
         ax.grid(True, which='both', linestyle='-', alpha=0.7)
 
     if buy_cells is not None:
         plot_cells(ax1, buy_cells, "BUY Trades Impact")
+        ax1_right = ax1.twinx()
+        ax1_right.set_ylim(ax1.get_ylim())
+        ax1_right.yaxis.set_ticks_position('right')
+
     if sell_cells is not None:
         plot_cells(ax2, sell_cells, "SELL Trades Impact")
-
-    all_times = []
-    if buy_cells is not None: all_times.extend(buy_cells['grid_t'].tolist())
-    if sell_cells is not None: all_times.extend(sell_cells['grid_t'].tolist())
+        ax2_right = ax2.twinx()
+        ax2_right.set_ylim(ax2.get_ylim())
+        ax2_right.yaxis.set_ticks_position('right')
 
     if all_times:
-        start_time = min(all_times)
-        end_time = max(all_times)
-        
         # Logic for x-axis ticks based on time_step_sec
         hour_ticks = []
         current = start_time.replace(minute=0, second=0, microsecond=0)
@@ -138,7 +173,6 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
         # Add finer ticks if time_step_sec < 3600 (e.g., every 10 mins)
         if time_step_sec < 3600:
             fine_ticks = []
-            # Start from the first full 10-min interval after or at start_time
             start_minute = (start_time.minute // 10) * 10
             current_fine = start_time.replace(minute=start_minute, second=0, microsecond=0)
             if current_fine < start_time:
@@ -148,13 +182,18 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
                 fine_ticks.append(current_fine)
                 current_fine += timedelta(minutes=10)
             
-            # Combine and sort unique ticks
             all_ticks = sorted(list(set(hour_ticks + fine_ticks)))
         else:
             all_ticks = hour_ticks
 
         if all_ticks:
-            plt.xticks(all_ticks, [t.strftime('%H:%M') for t in all_ticks], rotation=45)
+            ax2.set_xticks(all_ticks)
+            ax2.set_xticklabels([t.strftime('%H:%M') for t in all_ticks], rotation=45, fontsize=14)
+            ax1.set_xticks(all_ticks)
+            ax1.set_xticklabels([t.strftime('%H:%M') for t in all_ticks], rotation=45, fontsize=14)
+            # Ensure y-axis labels are also large
+            ax1.tick_params(axis='y', labelsize=14)
+            ax2.tick_params(axis='y', labelsize=14)
 
     plt.tight_layout()
     plt.savefig(output_file)
