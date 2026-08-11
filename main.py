@@ -53,6 +53,9 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
             if len(prices) > 1:
                 diffs = np.diff(prices)
                 val = np.mean(diffs)
+                # If it's a SELL side, invert the sign of the mean difference
+                if side_name == 'SELL':
+                    val = -val
             else:
                 val = 0.0 
             
