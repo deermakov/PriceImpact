@@ -88,7 +88,7 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
     print("Plotting...")
     
     # Parameters for cell size in inches to keep them visually consistent
-    CELL_WIDTH_INCHES = 0.05
+    CELL_WIDTH_INCHES = 0.1
     CELL_HEIGHT_INCHES = 0.05
 
     all_times = []
