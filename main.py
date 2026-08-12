@@ -49,17 +49,27 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
         values = []
 
         for (gt, gp), group in grouped:
-            prices = group['price'].sort_values().values
+            prices = group['price'].values
+            # Store raw prices for reporting
+            raw_prices = list(prices)
             if len(prices) > 1:
                 diffs = np.diff(prices)
                 val = np.mean(diffs)
                 # If it's a SELL side, invert the sign of the mean difference
                 if side_name == 'SELL':
                     val = -val
+                diff_series = list(diffs)
             else:
                 val = 0.0 
+                diff_series = []
             
-            cells.append({'grid_t': gt, 'grid_p': gp, 'value': val})
+            cells.append({
+                'grid_t': gt, 
+                'grid_p': gp, 
+                'value': val, 
+                'raw_prices': raw_prices,
+                'diff_series': diff_series
+            })
             values.append(val)
 
         if not cells:
@@ -76,16 +86,71 @@ def process_data(input_file, output_file, time_step_sec, price_step, percentile_
         
         cells_df['quantile_idx'] = np.digitize(cells_df['value'], bins) - 1
         cells_df['quantile_idx'] = cells_df['quantile_idx'].clip(0, len(bins) - 2)
+        
+        # Store bins for distribution reporting
+        cells_df['_bins'] = None # Placeholder
 
         # 7. Assign color
         cmap = plt.get_cmap(palette)
         num_colors = len(bins) - 1
         cells_df['color'] = cells_df['quantile_idx'].apply(lambda x: cmap(x / (num_colors if num_colors > 0 else 1)))
 
-        return cells_df
+        return cells_df, bins
 
-    buy_cells = analyze_side('BUY', 'viridis')
-    sell_cells = analyze_side('SELL', 'inferno')
+    buy_cells_data = analyze_side('BUY', 'viridis')
+    sell_cells_data = analyze_side('SELL', 'inferno')
+
+    buy_cells = buy_cells_data[0] if buy_cells_data else None
+    buy_bins = buy_cells_data[1] if buy_cells_data else None
+    sell_cells = sell_cells_data[0] if sell_cells_data else None
+    sell_bins = sell_cells_data[1] if sell_cells_data else None
+
+    # 8. Report to text file
+    report_file = output_file.replace('.png', '_report.txt')
+    with open(report_file, 'w') as f:
+        f.write("--- PRICE IMPACT REPORT ---\n\n")
+        
+        f.write("1. CELL DETAILS\n")
+        for side, cells in [('BUY', buy_cells), ('SELL', sell_cells)]:
+            f.write(f"\n[{side} SIDE]\n")
+            if cells is None or cells.empty:
+                f.write("No data available.\n")
+                continue
+            
+            current_bins = buy_bins if side == 'BUY' else sell_bins
+            
+            for _, row in cells.iterrows():
+                # Calculate boundaries exactly as they are in the grid
+                t_start = row['grid_t']
+                t_end = t_start + pd.Timedelta(seconds=time_step_sec)
+                p_start = row['grid_p']
+                p_end = p_start + price_step
+                
+                f.write(f"Cell: Time [{t_start} to {t_end}], Price [{p_start} to {p_end}]\n")
+                f.write(f"  Prices: {row['raw_prices']}\n")
+                f.write(f"  Diff Series: {row['diff_series']}\n")
+                f.write(f"  Value: {row['value']:.6f}\n")
+                # Find quantile index/range
+                q_idx = row['quantile_idx']
+                if current_bins is not None and 0 <= q_idx < len(current_bins) - 1:
+                    f.write(f"  Quantile range: [{current_bins[q_idx]:.6f}, {current_bins[q_idx+1]:.6f}]\n")
+                f.write("-" * 20 + "\n")
+
+        f.write("\n2. TOTAL BUY DISTRIBUTION (Quantiles)\n")
+        if buy_bins is not None:
+            for i in range(len(buy_bins) - 1):
+                f.write(f"  Q{i}: [{buy_bins[i]:.6f}, {buy_bins[i+1]:.6f}]\n")
+        else:
+            f.write("No data.\n")
+
+        f.write("\n3. TOTAL SELL DISTRIBUTION (Quantiles)\n")
+        if sell_bins is not None:
+            for i in range(len(sell_bins) - 1):
+                f.write(f"  Q{i}: [{sell_bins[i]:.6f}, {sell_bins[i+1]:.6f}]\n")
+        else:
+            f.write("No data.\n")
+
+    print(f"Report saved to: {report_file}")
 
     # Plotting
     print("Plotting...")
